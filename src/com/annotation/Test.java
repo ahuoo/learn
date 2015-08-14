@@ -3,6 +3,10 @@ package com.annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
+import com.annotation.Column;
+import com.annotation.Filter;
+import com.annotation.Table;
+
 /**
  * @author baoyou  E-mail:curiousby@163.com
  * @version 创建时间：2015年7月23日 下午3:19:11 
