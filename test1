@@ -46,7 +46,7 @@ def stock_exchange(df_shareholder_rate, df_free_market_value, df_close_price, ra
     rate = []
     next_idx = 0
     for idx, date in enumerate(df_shareholder_rate.columns):
-        if idx >= 3+40+rand_num and idx > next_idx and idx+hold_days+1 < len(df_shareholder_rate.columns): # and date.year == 2018:
+        if idx >= 3+40+rand_num and idx > next_idx and idx+hold_days+4 < len(df_shareholder_rate.columns): # and date.year == 2018:
 
             # delta15 = date + datetime.timedelta(days=+15)
             # choose
@@ -64,10 +64,10 @@ def stock_exchange(df_shareholder_rate, df_free_market_value, df_close_price, ra
             shareholder_market['cash15'] = shareholder_market['delta15'] * shareholder_market[date]/100
             shareholder_market['cash30'] = shareholder_market['delta30'] * shareholder_market[date]/100
             shareholder_market['cash60'] = shareholder_market['delta60'] * shareholder_market[date]/100
-            selected_stocks = shareholder_market.query('delta15>=0.5 & delta15<1  & delta60>delta30 & delta30>delta15 & cash15>=0.9').sort_values(by=['cash30'], ascending=False).head(number)
+            selected_stocks = shareholder_market.query('delta15>=0.5 & delta15<1 & delta60>delta30 & delta30>delta15 & cash15>=0.9').sort_values(by=['cash30'], ascending=False).head(number)
             if selected_stocks.empty:
                 print('Empty:', delta15, delta30, delta60, date)
-                continue
+                # continue
 
             # buy, sell it after 20 days
             after30 = df_shareholder_rate.columns[idx + hold_days]
