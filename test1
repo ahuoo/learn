@@ -1,0 +1,139 @@
+import pandas as pd
+import numpy as np
+from matplotlib import pyplot as plt
+
+
+def get_close_price():
+    df_close_price = pd.read_excel('data/close_price.xlsx', index_col=3)
+    df_close_price.info()
+    return df_close_price
+
+
+def get_free_market_value():
+    df_free_market_value = pd.read_excel('data/free_market_value.xlsx',  index_col=3)
+    df_free_market_value.info()
+    return df_free_market_value
+
+def get_free_market_rate():
+    df_free_market_rate = pd.read_excel('data/free_market_rate.xlsx', index_col=3)  # , usecols=[0,1,2,3,4,5,6,7]
+    return df_free_market_rate
+
+def get_holders():
+    df_holders = pd.read_excel('data/holders.xlsx', sheet_name='股东户数',  index_col=3)
+    df_holders.info()
+    return df_holders
+
+
+def draw_trend_chart(profit):
+    x = [p[0].date() for p in profit]
+    y = [p[2] for p in profit]
+    # plt.figure(figsize=(8,8))
+    fig = plt.figure()
+    plt.plot(x, y, "r", linewidth=1)
+    fig.autofmt_xdate()
+    plt.xlabel("Date")
+    plt.ylabel("Balance")
+    plt.title("balance")
+    plt.show()
+
+
+def stock_exchange(df_shareholder_rate, df_free_market_value, df_close_price, rand_num):
+    original_principal = 100000.0  # 原始本金
+    number = 5 # 每次多少只
+    hold_days = 20
+    buy_principal = original_principal
+    profit = []
+    rate = []
+    next_idx = 0
+    for idx, date in enumerate(df_shareholder_rate.columns):
+        if idx >= 3+40+rand_num and idx > next_idx and idx+hold_days+1 < len(df_shareholder_rate.columns): # and date.year == 2018:
+
+            # delta15 = date + datetime.timedelta(days=+15)
+            # choose
+            delta15 = df_shareholder_rate.columns[idx - 10]
+            delta30 = df_shareholder_rate.columns[idx - 20]
+            delta60 = df_shareholder_rate.columns[idx - 40]
+            df_shareholder_rate['delta15'] = df_shareholder_rate[date] - df_shareholder_rate[delta15]
+            df_shareholder_rate['delta30'] = df_shareholder_rate[date] - df_shareholder_rate[delta30]
+            df_shareholder_rate['delta60'] = df_shareholder_rate[date] - df_shareholder_rate[delta60]
+            df_shareholder = df_shareholder_rate.loc[:, ['日期', 'delta15', 'delta30', 'delta60']]
+            df_date_market = df_free_market_value.loc[:, [date]]
+            df_date_market = df_date_market[df_date_market[date] > 100] #市值
+            df_date_market = df_date_market[df_date_market[date] < 200]  # 市值
+            shareholder_market = df_shareholder.join(df_date_market, how='inner')
+            shareholder_market['cash15'] = shareholder_market['delta15'] * shareholder_market[date]/100
+            shareholder_market['cash30'] = shareholder_market['delta30'] * shareholder_market[date]/100
+            shareholder_market['cash60'] = shareholder_market['delta60'] * shareholder_market[date]/100
+            selected_stocks = shareholder_market.query('delta15>=0.5 & delta15<1  & delta60>delta30 & delta30>delta15 & cash15>=0.9').sort_values(by=['cash30'], ascending=False).head(number)
+            if selected_stocks.empty:
+                print('Empty:', delta15, delta30, delta60, date)
+                continue
+
+            # buy, sell it after 20 days
+            after30 = df_shareholder_rate.columns[idx + hold_days]
+            df_trade = df_close_price.loc[:, [date, after30]]
+            df_trade['buy_hands'] = df_trade[date].apply(lambda x: int((buy_principal / number) / (x * 100)) if x > 0 else 0)
+            df_trade['buy_hands_principal'] = df_trade['buy_hands'] * df_trade[date] * 100
+            df_trade['buy_hands_left'] = (buy_principal / number) - df_trade['buy_hands_principal']
+            # print(df_price)
+
+            # sell
+            df_trade['sell_hands_balance'] = df_trade['buy_hands'] * df_trade[after30] * 100 + df_trade['buy_hands_left']
+            df_trade['sell_hands_offset'] = df_trade['sell_hands_balance'] - df_trade['buy_hands_principal'] - df_trade['buy_hands_left']
+            # print(df_price.head(10))
+
+            # evaluate
+            df_evaluate = selected_stocks.join(df_trade, how='inner', lsuffix='_left')
+            print(df_evaluate)
+            sell_principal = df_evaluate['sell_hands_balance'].sum() + (number - len(df_evaluate.index)) * (buy_principal / number)
+            profit_rate = round((sell_principal - buy_principal) / buy_principal * 100, 2)
+            print('当前ID:', idx, '买入日期:', date, '每份资金:', buy_principal / number, '买入时本金:', buy_principal, '卖出后本金:', sell_principal, '收益率:', str(profit_rate) + '%')
+
+            # profit for summery
+            profit.append((date, buy_principal, sell_principal, profit_rate))
+            rate.append(profit_rate)
+
+            # buy it after selling
+            buy_principal = sell_principal
+            next_idx = idx+hold_days
+            # print(df_price[df_price.index =='600779.SH'])
+
+        # print(date)
+
+
+    # summary
+    for id, trade in enumerate(profit):
+        print(id, trade)
+    year = 2018
+    money = original_principal
+    for trade in profit:
+        if trade[0].year != year:
+            print('年份:',year, '初:',  money, '末:', trade[1], '收益率:', round((trade[1]-money)/money,2))
+            year += 1
+            money = trade[1]
+    print('年份:',year, '初:',  money, '末:', profit[-1][2], '收益率:', round((profit[-1][2]-money)/money,2))
+
+    print('Income Rate:', (profit[-1][2]-original_principal)/original_principal)
+    print('Max:',np.max(rate), 'Min:', np.min(rate), 'Mean:', np.mean(rate), 'STD:', np.std(rate))
+    # draw_trend_chart(profit)
+    return (profit[-1][2]-original_principal)/original_principal
+
+
+
+
+if __name__ == '__main__':
+    df_free_market_rate = get_free_market_rate()
+
+    df_close_price = get_close_price()
+    df_free_market_value = get_free_market_value()
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.width', None)
+    # income = []
+    # for num in range(0, 530):
+    #     print(num)
+    #     income_rate = stock_exchange(df_free_market_rate, df_free_market_value, df_close_price, num)
+    #     income.append([num, income_rate])
+    # for i in income:
+    #     print(i)
+    stock_exchange(df_free_market_rate, df_free_market_value, df_close_price, 0)
